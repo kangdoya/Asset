@@ -91,7 +91,7 @@ try:
     st.markdown("---")
 
     # =====================================================================
-    # 6. 시각화 차트 (위치 변경 반영)
+    # 6. 시각화 차트 (2x2 그리드 배치)
     # =====================================================================
     
     # [데이터 가공] 목표 점유비와 현재 점유비(%) 계산 및 병합
@@ -129,7 +129,7 @@ try:
             fig_pie2.update_layout(height=450)
             st.plotly_chart(fig_pie2, use_container_width=True)
 
-    # [두 번째 행] 좌측: 종목별 목표 vs 현재 점유비 비교 (Gap) / 우측: 52주 변동폭 대비 현재가 위치
+    # [두 번째 행] 좌측: 종목별 목표 vs 현재 점유비 비교 (Gap) / 우측: 가격 범위 바벨 차트
     chart_row2_col1, chart_row2_col2 = st.columns(2)
 
     with chart_row2_col1:
@@ -148,59 +148,73 @@ try:
             st.plotly_chart(fig_gap, use_container_width=True)
 
     with chart_row2_col2:
-        st.subheader("📊 52주 변동폭 대비 현재가 위치")
+        st.subheader("📊 52주 가격 범위 및 현재가 위치")
         if "52주 최고가" in calc_df.columns and "52주 최저가" in calc_df.columns and "주당가격" in calc_df.columns:
-            bullet_df = calc_df[(calc_df["52주 최고가"] > 0) & (calc_df["52주 최저가"] > 0)]
+            range_df = calc_df[(calc_df["52주 최고가"] > 0) & (calc_df["52주 최저가"] > 0)].copy()
             
-            if not bullet_df.empty:
-                fig_bullet = go.Figure()
-                N = len(bullet_df)
+            if not range_df.empty:
+                fig_range = go.Figure()
                 
-                for i, row in bullet_df.reset_index().iterrows():
-                    gap_bottom = 0.3 / N  
-                    gap_top = 0.05 / N    
+                # 각 종목별 52주 최저~최고 구간(수평선) 및 현재가(마커) 추가
+                for _, row in range_df.iterrows():
+                    name = row["종목명"]
+                    low = row["52주 최저가"]
+                    high = row["52주 최고가"]
+                    current = row["주당가격"]
                     
-                    y_start = 1 - (i + 1) / N + gap_bottom
-                    y_end = 1 - i / N - gap_top
-                    
-                    label_text = row["종목명"]
-                    
-                    tick_vals = [row["52주 최저가"], row["주당가격"], row["52주 최고가"]]
-                    tick_texts = [f"{row['52주 최저가']:,.0f}(최저)", f"{row['주당가격']:,.0f}(현재)", f"{row['52주 최고가']:,.0f}(고점)"]
-                    
-                    fig_bullet.add_trace(go.Indicator(
-                        mode = "number+gauge",
-                        value = row["주당가격"],
-                        number = {'valueformat': ',.0f', 'font': {'size': 18}},
-                        title = {'text': f"<span style='font-size:13px'>{label_text}</span>"},
-                        domain = {'x': [0.25, 1], 'y': [y_start, y_end]},
-                        gauge = {
-                            'shape': "bullet",
-                            'axis': {
-                                'range': [row["52주 최저가"] * 0.9, row["52주 최고가"] * 1.1],
-                                'tickvals': tick_vals,
-                                'ticktext': tick_texts,
-                                'tickfont': {'size': 10, 'color': '#333'}
-                            },
-                            'threshold': {
-                                'line': {'color': "red", 'width': 3},
-                                'thickness': 0.75,
-                                'value': row["52주 최고가"]
-                            },
-                            'steps': [
-                                {'range': [0, row["52주 최저가"]], 'color': "#e6e6e6"},
-                                {'range': [row["52주 최저가"], row["52주 최고가"]], 'color': "#b3b3b3"}
-                            ],
-                            'bar': {'color': "#1f77b4"}
-                        }
+                    # 1. 최저~최고 구간을 잇는 회색 수평 바 (Range Line)
+                    fig_range.add_trace(go.Scatter(
+                        x=[low, high],
+                        y=[name, name],
+                        mode="lines",
+                        line=dict(color="#b3b3b3", width=8),
+                        showlegend=False,
+                        hoverinfo="skip"
                     ))
-                
-                fig_bullet.update_layout(
-                    height=max(450, N * 80), 
-                    margin=dict(l=120, r=80, t=60, b=40), 
-                    title="검은색 막대: 현재가 / 빨간선: 52주 최고가 / 회색 영역: 52주 최저~최고 구간"
+                    
+                    # 2. 52주 최저가 텍스트 마커
+                    fig_range.add_trace(go.Scatter(
+                        x=[low],
+                        y=[name],
+                        mode="text+markers",
+                        marker=dict(color="#888888", size=10),
+                        text=[f"{low:,.0f} (최저)"],
+                        textposition="bottom center",
+                        showlegend=False
+                    ))
+
+                    # 3. 현재가 파란색 포인트 마커
+                    fig_range.add_trace(go.Scatter(
+                        x=[current],
+                        y=[name],
+                        mode="text+markers",
+                        marker=dict(color="#1f77b4", size=14),
+                        text=[f"{current:,.0f} (현재)"],
+                        textposition="top center",
+                        textfont=dict(color="#1f77b4", size=12, family="sans-serif"),
+                        showlegend=False
+                    ))
+                    
+                    # 4. 52주 최고가 빨간색 포인트 마커
+                    fig_range.add_trace(go.Scatter(
+                        x=[high],
+                        y=[name],
+                        mode="text+markers",
+                        marker=dict(color="red", size=12, symbol="line-ns-open"),
+                        text=[f"{high:,.0f} (고점)"],
+                        textposition="bottom center",
+                        textfont=dict(color="red", size=11),
+                        showlegend=False
+                    ))
+
+                fig_range.update_layout(
+                    height=450,
+                    margin=dict(l=20, r=20, t=50, b=40),
+                    title="회색선: 52주 최저~고점 구간 / 파란점: 현재가 / 빨간선: 52주 최고가",
+                    xaxis=dict(title="가격 (원)", zeroline=False),
+                    yaxis=dict(title="", autorange="reversed") # 위에서 아래로 종목 정렬
                 )
-                st.plotly_chart(fig_bullet, use_container_width=True)
+                st.plotly_chart(fig_range, use_container_width=True)
             else:
                 st.info("💡 종목별 52주 최고가 및 최저가 데이터가 아직 유효하게 입력되지 않았습니다.")
         else:
