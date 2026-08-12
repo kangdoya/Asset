@@ -91,10 +91,10 @@ try:
     st.markdown("---")
 
     # =====================================================================
-    # 6. 시각화 차트 (2x2 그리드 배치 - 목표 vs 현재 점유비 비교 차트 포함)
+    # 6. 시각화 차트 (위치 변경 반영)
     # =====================================================================
     
-    # [추가 데이터 가공] 목표 점유비와 현재 점유비(%) 계산 및 병합
+    # [데이터 가공] 목표 점유비와 현재 점유비(%) 계산 및 병합
     melted_df = pd.DataFrame()
     if "종목명" in calc_df.columns and "점유비" in calc_df.columns:
         chart_df = calc_df[calc_df["종목명"] != "합계"].copy()
@@ -112,9 +112,27 @@ try:
         )
         melted_df["구분"] = melted_df["구분"].replace({"점유비": "목표 점유비", "현재 점유비": "현재 점유비"})
 
+    # [첫 번째 행] 좌측: 종목별 목표 달성율 (%) / 우측: 종목별 현재 자산 비중 (%)
     chart_row1_col1, chart_row1_col2 = st.columns(2)
 
     with chart_row1_col1:
+        st.subheader("🎯 종목별 목표 달성율 (%)")
+        if "종목명" in calc_df.columns and "달성율" in calc_df.columns:
+            fig_bar = px.bar(calc_df, x="종목명", y="달성율", text_auto=".2f", color="달성율", title="수량 기준 목표 달성 현황")
+            fig_bar.update_layout(height=450)
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+    with chart_row1_col2:
+        st.subheader("📌 종목별 현재 자산 비중 (%)")
+        if "종목명" in calc_df.columns and "현재 투자금액" in calc_df.columns:
+            fig_pie2 = px.pie(calc_df, names="종목명", values="현재 투자금액", hole=0.4, title="현재 자산 비중")
+            fig_pie2.update_layout(height=450)
+            st.plotly_chart(fig_pie2, use_container_width=True)
+
+    # [두 번째 행] 좌측: 종목별 목표 vs 현재 점유비 비교 (Gap) / 우측: 52주 변동폭 대비 현재가 위치
+    chart_row2_col1, chart_row2_col2 = st.columns(2)
+
+    with chart_row2_col1:
         st.subheader("📊 종목별 목표 vs 현재 점유비 비교 (Gap)")
         if not melted_df.empty:
             fig_gap = px.bar(
@@ -128,22 +146,6 @@ try:
             )
             fig_gap.update_layout(height=450, xaxis_tickangle=-15)
             st.plotly_chart(fig_gap, use_container_width=True)
-
-    with chart_row1_col2:
-        st.subheader("📌 종목별 현재 자산 비중 (%)")
-        if "종목명" in calc_df.columns and "현재 투자금액" in calc_df.columns:
-            fig_pie2 = px.pie(calc_df, names="종목명", values="현재 투자금액", hole=0.4, title="현재 자산 비중")
-            fig_pie2.update_layout(height=450)
-            st.plotly_chart(fig_pie2, use_container_width=True)
-
-    chart_row2_col1, chart_row2_col2 = st.columns(2)
-
-    with chart_row2_col1:
-        st.subheader("🎯 종목별 목표 달성율 (%)")
-        if "종목명" in calc_df.columns and "달성율" in calc_df.columns:
-            fig_bar = px.bar(calc_df, x="종목명", y="달성율", text_auto=".2f", color="달성율", title="수량 기준 목표 달성 현황")
-            fig_bar.update_layout(height=450)
-            st.plotly_chart(fig_bar, use_container_width=True)
 
     with chart_row2_col2:
         st.subheader("📊 52주 변동폭 대비 현재가 위치")
