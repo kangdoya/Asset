@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 # 2. 앱 타이틀 및 설명
-st.title("📊 자산 목표 관리")
+st.title("📊 자산 관리 & 목표 달성 대시보드 (Goal)")
 st.caption("구글 드라이브의 Asset Management 데이터와 실시간으로 연동된 대시보드입니다.")
 
 # =====================================================================
@@ -91,20 +91,49 @@ try:
     st.markdown("---")
 
     # =====================================================================
-    # 6. 시각화 차트 (2x2 그리드 배치)
+    # 6. 시각화 차트 (2x2 그리드 배치 - 목표 vs 현재 점유비 비교 차트 포함)
     # =====================================================================
+    
+    # [추가 데이터 가공] 목표 점유비와 현재 점유비(%) 계산 및 병합
+    melted_df = pd.DataFrame()
+    if "종목명" in calc_df.columns and "점유비" in calc_df.columns:
+        chart_df = calc_df[calc_df["종목명"] != "합계"].copy()
+        
+        total_curr_inv = chart_df["현재 투자금액"].sum() if "현재 투자금액" in chart_df.columns else 1
+        if total_curr_inv == 0: total_curr_inv = 1
+        
+        chart_df["현재 점유비"] = (chart_df["현재 투자금액"] / total_curr_inv) * 100
+        
+        melted_df = chart_df.melt(
+            id_vars=["종목명"], 
+            value_vars=["점유비", "현재 점유비"],
+            var_name="구분", 
+            value_name="비중(%)"
+        )
+        melted_df["구분"] = melted_df["구분"].replace({"점유비": "목표 점유비", "현재 점유비": "현재 점유비"})
+
     chart_row1_col1, chart_row1_col2 = st.columns(2)
 
     with chart_row1_col1:
-        st.subheader("📌 종목별 목표 점유비 (%)")
-        if "종목명" in calc_df.columns and "점유비" in calc_df.columns:
-            fig_pie1 = px.pie(calc_df, names="종목명", values="점유비", hole=0.4, title="목표 자산 비중")
-            st.plotly_chart(fig_pie1, use_container_width=True)
+        st.subheader("📊 종목별 목표 vs 현재 점유비 비교 (Gap)")
+        if not melted_df.empty:
+            fig_gap = px.bar(
+                melted_df, 
+                x="종목명", 
+                y="비중(%)", 
+                color="구분", 
+                barmode="group",
+                text_auto=".1f",
+                title="목표 점유비 vs 현재 점유비 비교"
+            )
+            fig_gap.update_layout(height=450, xaxis_tickangle=-15)
+            st.plotly_chart(fig_gap, use_container_width=True)
 
     with chart_row1_col2:
-        st.subheader("📌 종목별 현재 점유비 (%)")
+        st.subheader("📌 종목별 현재 자산 비중 (%)")
         if "종목명" in calc_df.columns and "현재 투자금액" in calc_df.columns:
             fig_pie2 = px.pie(calc_df, names="종목명", values="현재 투자금액", hole=0.4, title="현재 자산 비중")
+            fig_pie2.update_layout(height=450)
             st.plotly_chart(fig_pie2, use_container_width=True)
 
     chart_row2_col1, chart_row2_col2 = st.columns(2)
@@ -125,7 +154,6 @@ try:
                 fig_bullet = go.Figure()
                 N = len(bullet_df)
                 
-                # [오류 해결된 반복문 반영]
                 for i, row in bullet_df.reset_index().iterrows():
                     gap_bottom = 0.3 / N  
                     gap_top = 0.05 / N    
